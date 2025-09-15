@@ -15,11 +15,9 @@ public class PaymentController {
 
     @Autowired
     private PaymentService service;
-
     
     @PostMapping("/credit-card")
     public void creditCard(@RequestBody PaymentCreditCardMSRequestDTO paymentCreditCardMSRequestDTO){
-        System.out.println(paymentCreditCardMSRequestDTO.toString());
         service.createCreditCardPayment(paymentCreditCardMSRequestDTO);
     }
     
