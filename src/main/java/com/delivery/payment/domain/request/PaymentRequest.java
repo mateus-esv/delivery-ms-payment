@@ -7,19 +7,32 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
-import com.delivery.payment.api.dto.PaymentResponseDTO;
-import com.delivery.payment.api.dto.paymentRequest.PaymentCreditCardMercadoPagoRequestDTO;
+import com.delivery.payment.api.dto.paymentCreditCardRequest.PaymentCreditCardMercadoPagoRequestDTO;
+import com.delivery.payment.api.dto.paymentCreditCardResponse.PaymentCreditCardResponseDTO;
+import com.delivery.payment.api.dto.paymentPixRequest.PaymentPixMercadoPagoRequestDTO;
+import com.delivery.payment.api.dto.paymentPixResponse.PaymentPixResponseDTO;
 
 @FeignClient(name = "payment-mercadopago-request", url = "${url.base}")
 public interface PaymentRequest {
 
         @PostMapping("/v1/payments")
-        public PaymentResponseDTO createCreditCardPayment(@RequestHeader("Authorization") String bearerToken,
+        public PaymentCreditCardResponseDTO createCreditCardPayment(@RequestHeader("Authorization") String bearerToken,
                         @RequestHeader("X-Idempotency-Key") String idempotencyKey,
                         @RequestBody PaymentCreditCardMercadoPagoRequestDTO paymentCreditCardMercadoPagoRequestDTO);
 
+        @PostMapping("/v1/payments")
+        public PaymentPixResponseDTO createPIXPayment(@RequestHeader("Authorization") String bearerToken,
+                        @RequestHeader("X-Idempotency-Key") String idempotencyKey,
+                        @RequestBody PaymentPixMercadoPagoRequestDTO paymentPixMercadoPagoRequestDTO);
+
         @GetMapping("/v1/payments/{id}")
-        public PaymentResponseDTO getPayment(
+        public PaymentCreditCardResponseDTO getPaymentCreditCard(
+                        @RequestHeader("Authorization") String bearerToken,
+                        @PathVariable("id") String paymentId);
+
+                        
+        @GetMapping("/v1/payments/{id}")
+        public PaymentPixResponseDTO getPaymentPix(
                         @RequestHeader("Authorization") String bearerToken,
                         @PathVariable("id") String paymentId);
 

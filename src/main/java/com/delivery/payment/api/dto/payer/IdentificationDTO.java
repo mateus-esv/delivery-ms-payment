@@ -1,4 +1,4 @@
-package com.delivery.payment.api.dto.paymentRequest;
+package com.delivery.payment.api.dto.payer;
 
 import lombok.Builder;
 

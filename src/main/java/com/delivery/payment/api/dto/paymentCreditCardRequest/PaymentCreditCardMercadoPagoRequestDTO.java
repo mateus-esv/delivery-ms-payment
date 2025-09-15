@@ -1,6 +1,8 @@
-package com.delivery.payment.api.dto.paymentRequest;
+package com.delivery.payment.api.dto.paymentCreditCardRequest;
 
 import java.math.BigDecimal;
+
+import com.delivery.payment.api.dto.payer.PayerDTO;
 
 import lombok.Builder;
 
