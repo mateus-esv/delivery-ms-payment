@@ -156,6 +156,8 @@ public class PaymentService {
                         orchestratorPaymentRequest.notify(paymentPixResponseDTO.status());
                     }
 
+                }else{
+                    System.out.println("Status "+paymentPixResponseDTO.status()+", tentando novamente em 10 segundos...");
                 }
 
             } catch (Exception e) {

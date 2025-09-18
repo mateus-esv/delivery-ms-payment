@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 @FeignClient(name = "orchestrator-payment-request", url = "${url.base.orchestrator-payment}")
 public interface OrchestratorPaymentRequest {
                         
-        @PostMapping("/delivery/orchestrator-payment/notification")
+        @PostMapping("/orchestrator-payment/notify")
         public void notify(@RequestBody String status);
 
 }
