@@ -4,20 +4,28 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.delivery.payment.api.dto.paymentCreditCardRequest.PaymentCreditCardRequestDTO;
 import com.delivery.payment.api.dto.paymentCreditCardResponse.PaymentCreditCardResponseDTO;
+import com.delivery.payment.api.dto.paymentCreditCardResponse.PaymentCreditCardToOrchestratorResponseDTO;
 import com.delivery.payment.api.dto.paymentCreditCardRequest.PaymentCreditCardMercadoPagoRequestDTO;
 import com.delivery.payment.api.dto.paymentPixRequest.PaymentPixMercadoPagoRequestDTO;
 import com.delivery.payment.api.dto.paymentPixRequest.PaymentPixRequestDTO;
 import com.delivery.payment.api.dto.paymentPixResponse.PaymentPixResponseDTO;
+import com.delivery.payment.api.dto.paymentPixResponse.PaymentPixToOrchestratorResponseDTO;
+import com.delivery.payment.comuns.convert.Convert;
 import com.delivery.payment.comuns.enums.PaymentMethod;
+import com.delivery.payment.comuns.enums.PaymentStatus;
 import com.delivery.payment.domain.entity.Payment;
 import com.delivery.payment.domain.repository.PaymentRepository;
+import com.delivery.payment.domain.request.OrchestratorPaymentRequest;
 import com.delivery.payment.domain.request.PaymentRequest;
 
 import io.github.cdimascio.dotenv.Dotenv;
@@ -26,41 +34,42 @@ import io.github.cdimascio.dotenv.Dotenv;
 public class PaymentService {
 
     @Autowired
-    private PaymentRequest request;
+    private PaymentRequest paymentRequest;
+
+    @Autowired
+    private OrchestratorPaymentRequest orchestratorPaymentRequest;
 
     @Autowired
     private PaymentRepository repository;
+
+    @Autowired
+    private Convert convert;
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     private Dotenv dotenv = Dotenv.load();
 
-    private String token = dotenv.get("TOKEN_MERCADO_PAGO_TESTE");
+    private String token = dotenv.get("TOKEN_MERCADO_PAGO_PRODUCAO");
 
-    public void createCreditCardPayment(PaymentCreditCardRequestDTO paymentCreditCardRequestDTO) {
+    public PaymentCreditCardToOrchestratorResponseDTO createCreditCardPayment(
+            PaymentCreditCardRequestDTO paymentCreditCardRequestDTO) {
 
         // convertemos o dto, pois o dto não pode ter o id do cliente nele
-        PaymentCreditCardMercadoPagoRequestDTO paymentCreditCardMercadoPagoRequestDTO = PaymentCreditCardMercadoPagoRequestDTO
-                .builder()
-                .transaction_amount(paymentCreditCardRequestDTO.transaction_amount())
-                .token(paymentCreditCardRequestDTO.token())
-                .description(paymentCreditCardRequestDTO.description())
-                .installments(paymentCreditCardRequestDTO.installments())
-                .payment_method_id(paymentCreditCardRequestDTO.payment_method_id())
-                .payer(paymentCreditCardRequestDTO.payer())
-                .build();
+        PaymentCreditCardMercadoPagoRequestDTO paymentCreditCardMercadoPagoRequestDTO = convert.convertPaymentCreditCardRequestDTOToPaymentCreditCardMercadoPagoRequestDTO(paymentCreditCardRequestDTO);
 
         this.token = "Bearer " + this.token;
 
         // enviamos os dados para o mercado pago para realizar o pagamento
-        PaymentCreditCardResponseDTO paymentResponseDTO = request.createCreditCardPayment(this.token,
+        PaymentCreditCardResponseDTO paymentCreditCardResponseDTO = paymentRequest.createCreditCardPayment(this.token,
                 UUID.randomUUID().toString(),
                 paymentCreditCardMercadoPagoRequestDTO);
 
         // salvamos no banco
         // pegamos alguns dados da requisição de pagamento para salvar
         UUID id = UUID.randomUUID(); // id do pagamento
-        UUID idOrder = UUID.randomUUID(); // geramos um id para pedido
+        UUID idOrder = UUID.randomUUID(); // geramos um id para pedido, esse id deve ser enviado para o microsserviço de
+                                          // pedido, pois ele é a pk do id que criamos aqui mesmo ao inves de criar no
+                                          // ms de pedido
 
         Payment payment = Payment.builder()
                 .id(id)
@@ -68,43 +77,32 @@ public class PaymentService {
                 .orderIDFK(idOrder)
                 .paymentDate(LocalDateTime.now())
                 .paymentMethod(PaymentMethod.CREDIT_CARD)
-                .idPaymentMercadoPago(paymentResponseDTO.id())
-                .statusPaymentMercadoPago(paymentResponseDTO.status())
-                .statusDetailPaymentMercadoPago(paymentResponseDTO.status_detail())
+                .idPaymentMercadoPago(paymentCreditCardResponseDTO.id())
+                .paymentStatus(PaymentStatus.valueOf(paymentCreditCardResponseDTO.status().toUpperCase()))
+                .statusDetailPaymentMercadoPago(paymentCreditCardResponseDTO.status_detail())
                 .transactionAmount(paymentCreditCardRequestDTO.transaction_amount())
                 .build();
 
         repository.save(payment);
 
-        checkPaymentCreditCard(String.valueOf(paymentResponseDTO.id()));
+        
+        return convert.convertPaymentToPaymentCreditCardToOrchestratorResponseDTO(payment);
+
+        // checkPaymentCreditCard(String.valueOf(paymentResponseDTO.id()));
     }
 
-    private void checkPaymentCreditCard(String paymentID) {
-        PaymentCreditCardResponseDTO paymentCreditCardResponseDTO = request.getPaymentCreditCard(this.token, paymentID);
-
-        // approved, pending, rejected, cancelled
-        if (paymentCreditCardResponseDTO.status().equals("approved")) {
-            // enviar pedido para o microsserviço de pedido
-            // chamar endpoint de cliente para atualizar sobre a pontuação
-            System.out.println(
-                    "entrou para fazer requisição no microsserviço de pedido, pois foi realizado o pagamento com sucesso!");
-        }
-
+    public PaymentCreditCardResponseDTO checkPaymentCreditCard(Long paymentID) {
+        return paymentRequest.getPaymentCreditCard(this.token, paymentID);
     }
 
-    public PaymentPixResponseDTO createPIXPayment(PaymentPixRequestDTO paymentPixRequestDTO) {
+    public PaymentPixToOrchestratorResponseDTO createPIXPayment(PaymentPixRequestDTO paymentPixRequestDTO) {
         // DTO para pagamento PIX
-        PaymentPixMercadoPagoRequestDTO paymentPixMercadoPagoRequestDTO = PaymentPixMercadoPagoRequestDTO.builder()
-                .transaction_amount(paymentPixRequestDTO.transaction_amount()) // valor total da transação
-                .description(paymentPixRequestDTO.description()) // descrição do pagamento
-                .payment_method_id("pix") // PIX é o método
-                .payer(paymentPixRequestDTO.payer()) // dados do comprador
-                .build();
+        PaymentPixMercadoPagoRequestDTO paymentPixMercadoPagoRequestDTO = convert.convertPaymentPixRequestDTOToPaymentPixMercadoPagoRequestDTO(paymentPixRequestDTO);
 
         this.token = "Bearer " + this.token;
 
         // enviar requisição para o Mercado Pago
-        PaymentPixResponseDTO paymentPixResponseDTO = request.createPIXPayment(
+        PaymentPixResponseDTO paymentPixResponseDTO = paymentRequest.createPIXPayment(
                 this.token,
                 UUID.randomUUID().toString(), // id único da transação
                 paymentPixMercadoPagoRequestDTO);
@@ -120,51 +118,55 @@ public class PaymentService {
                 .paymentDate(LocalDateTime.now())
                 .paymentMethod(PaymentMethod.PIX)
                 .idPaymentMercadoPago(paymentPixResponseDTO.id())
-                .statusPaymentMercadoPago(paymentPixResponseDTO.status())
+                .paymentStatus(PaymentStatus.valueOf(paymentPixResponseDTO.status().toUpperCase()))
                 .statusDetailPaymentMercadoPago(paymentPixResponseDTO.status_detail())
                 .transactionAmount(paymentPixRequestDTO.transaction_amount())
                 .build();
 
         repository.save(payment);
-            
-        // monitorar pagamento
-        checkPaymentPixInBackground(String.valueOf(paymentPixResponseDTO.id()));
-            
+
+        // deixa a thread monitorarndo o pagamento
+        checkPaymentPixInBackground(paymentPixResponseDTO.id());
+
+        // é o Payment + point_of_interaction
+        PaymentPixToOrchestratorResponseDTO paymentPixToOrchestratorResponseDTO = convert.convertPaymentToPaymentPixToOrchestratorResponseDTO(payment, paymentPixResponseDTO);
+
         // Retornar QR Code para front-end gerar o pagamento
-        return paymentPixResponseDTO;
+        return paymentPixToOrchestratorResponseDTO;
     }
 
-    public void checkPaymentPixInBackground(String paymentID) {
-        Runnable task = new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    PaymentPixResponseDTO paymentPixResponseDTO = request.getPaymentPix(token, paymentID);
+    public void checkPaymentPixInBackground(Long paymentID) {
 
-                    if ("approved".equals(paymentPixResponseDTO.status())) {
-                        // pagamento aprovado
-                        System.out.println("Pagamento PIX aprovado! Liberando pedido...");
+        AtomicReference<ScheduledFuture<?>> futureRef = new AtomicReference<>();
 
-                        // TODO: chamar microsserviço de pedido ou atualizar cliente
+        Runnable task = () -> {
+            try {
+                PaymentPixResponseDTO paymentPixResponseDTO = paymentRequest.getPaymentPix(token, paymentID);
 
-                        
+                if ("approved".equals(paymentPixResponseDTO.status())) {
 
+                    // Pagamento aprovado
 
-                        // cancelar futuras execuções do loop
-                        throw new InterruptedException("Pagamento aprovado, finalizando loop.");
-                    } else {
-                        System.out.println("Pagamento ainda pendente. Tentando novamente em 5 segundos...");
+                    // Cancelar futuras execuções
+                    ScheduledFuture<?> future = futureRef.get();
+                    if (future != null) {
+                        future.cancel(false);
+
+                        // faço requisição para o orquestrador para avisar que deu certo
+                        orchestratorPaymentRequest.notify(paymentPixResponseDTO.status());
                     }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                } catch (Exception e) {
-                    e.printStackTrace();
+
                 }
+
+            } catch (Exception e) {
+                e.printStackTrace();
             }
+
         };
 
-        // agenda a execução a cada 5 segundos
-        scheduler.scheduleAtFixedRate(task, 0, 5, TimeUnit.SECONDS);
+        ScheduledFuture<?> scheduledFuture = scheduler.scheduleAtFixedRate(task, 0, 10, TimeUnit.SECONDS);
+        futureRef.set(scheduledFuture);
+
     }
 
 }

@@ -12,7 +12,7 @@ import com.delivery.payment.api.dto.paymentCreditCardResponse.PaymentCreditCardR
 import com.delivery.payment.api.dto.paymentPixRequest.PaymentPixMercadoPagoRequestDTO;
 import com.delivery.payment.api.dto.paymentPixResponse.PaymentPixResponseDTO;
 
-@FeignClient(name = "payment-mercadopago-request", url = "${url.base}")
+@FeignClient(name = "payment-mercadopago-request", url = "${url.base.mercado-pago}")
 public interface PaymentRequest {
 
         @PostMapping("/v1/payments")
@@ -28,12 +28,13 @@ public interface PaymentRequest {
         @GetMapping("/v1/payments/{id}")
         public PaymentCreditCardResponseDTO getPaymentCreditCard(
                         @RequestHeader("Authorization") String bearerToken,
-                        @PathVariable("id") String paymentId);
+                        @PathVariable("id") Long paymentId);
 
                         
         @GetMapping("/v1/payments/{id}")
         public PaymentPixResponseDTO getPaymentPix(
                         @RequestHeader("Authorization") String bearerToken,
-                        @PathVariable("id") String paymentId);
+                        @PathVariable("id") Long paymentId);
+
 
 }

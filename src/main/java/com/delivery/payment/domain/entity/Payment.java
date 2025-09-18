@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import com.delivery.payment.comuns.enums.PaymentMethod;
+import com.delivery.payment.comuns.enums.PaymentStatus;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -31,7 +32,7 @@ public class Payment {
     private PaymentMethod paymentMethod; // método de pagamento (pix, cartão de crédito)
         
     private Long idPaymentMercadoPago; // id do pagamento no mercado pago
-    private String statusPaymentMercadoPago; // status do pagamento no mercado pago
+    private PaymentStatus paymentStatus; // status do pagamento no mercado pago
     private String statusDetailPaymentMercadoPago; // detalhe do status do pagamento no mercado pago
     
     private BigDecimal transactionAmount; // valor da transação
